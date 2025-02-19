@@ -40,13 +40,13 @@ loop_counter = 0
 # Lists of all possible variables, variable labels and variable bins
 # |Variable|Label|nbins|xmin|xmax|logy|whichset( "Joel", "Lucas", "All")|
 
-dtype = np.dtype([("name", "U32"),
+dtype = np.dtype([("var", "U32"),
                   ("label", "U32"),
                   ("nbins",np.int32),
                   ("xmin",np.float64),
                   ("xmax",np.float64),
                   ("logy",bool),
-                  ("set",bool)])
+                  ("set", "U32")])
 
 jet_vars = np.array([("pt", "$p_T$ [MeV]", 40, 20_000, 250_000, True, "All"),
                      ("eta", "$\eta$",30, -2.5, 2.5, False, "All")],
@@ -61,11 +61,12 @@ track_vars = np.array([("pt", "$p_T$ [MeV]", 40, 20_000, 250_000, True, "All"),
 # function definintions
 
 def sum_over_tracks(tracks, variable):
-    return np.sum(tracks[variable], axis = 1)
+    return np.nansum(tracks[variable], axis = 1)
 
 # array creations
 
 dtype = np.dtype([("name", "U32"),
+                  ("var", "U32"),
                   ("label", "U32"),
                   ("nbins",np.int32),
                   ("xmin",np.float64),
@@ -74,26 +75,34 @@ dtype = np.dtype([("name", "U32"),
                   ("set", "U32"),
                   ("jet or track", "U32")])
 
-comp_vars = np.array([("valid", "nTracks", 20, 0, 20, False, "All", "jet"),
-                      ("pt", "summed track $p_T$ [MeV]", 40, 20_000, 250_000, True, "All", "jet")],
+comp_vars = np.array([("ntracks", "valid", "nTracks", 20, 0, 20, False, "All", "jet"),
+                      ("pt_summed_trackes", "pt", "summed track $p_T$ [MeV]", 40, 20_000, 250_000, True, "All", "jet")],
                       dtype = dtype)
 
 comp_funcs = [sum_over_tracks, sum_over_tracks]
 
 ## Select which variables are plotted
 
+def set_var_false(set):
+    return set[np.full(len(set),False)]
+
+def set_var_set(set_name, set):
+    not_name = "Joel" if set_name == "Lucas" else "Lucas"
+    return set[set["set"] != not_name]
 
 if "test" in preprocess:
-    track_vars = track_vars[np.full(len(track_vars["name"]),False)]
-    comp_vars = comp_vars[np.full(len(comp_vars["name"]),False)]
+    track_vars = set_var_false(track_vars)
+    comp_vars = set_var_false(comp_vars)
 
 if "Lucas" in preprocess:
-    jet_vars = track_vars[jet_vars["lucas"]]
-    track_vars = track_vars[track_vars["lucas"]]
-elif "All" in preprocess:
-    jet_vars = jet_vars[np.lobical_or(jet_vars["lucas"],jet_vars["joel"])]
-    track_vars = track_vars[np.lobical_or(track_vars["lucas"],track_vars["joel"])]
+    jet_vars = set_var_set("Lucas", jet_vars)
+    track_vars = set_var_set("Lucas", track_vars)
+    comp_vars = set_var_set("Lucas", comp_vars)
 
+elif "Joel" in preprocess:
+    jet_vars = set_var_set("Joel", jet_vars)
+    track_vars = set_var_set("Joel", track_vars)
+    comp_vars = set_var_set("Joel", comp_vars)
 
 ## Loop Controls
 
@@ -115,8 +124,8 @@ for track_var in range(len(track_vars)):
     track_binwidths.append((track_vars["xmax"][track_var]-track_vars["xmin"][track_var])/track_vars["nbins"][track_var])
 
 comp_binwidths = []
-for jet_var in range(len(jet_vars)):
-    jet_binwidths.append((jet_vars["xmax"][jet_var]-jet_vars["xmin"][jet_var])/jet_vars["nbins"][jet_var])
+for comp_var in range(len(comp_vars)):
+    comp_binwidths.append((comp_vars["xmax"][comp_var]-comp_vars["xmin"][comp_var])/comp_vars["nbins"][comp_var])
 
 
 ## Bin edges calculations
@@ -128,6 +137,10 @@ for jet_var in range(len(jet_vars)):
 track_bin_edges = []
 for track_var in range(len(track_vars)):
     track_bin_edges.append(np.linspace(track_vars["xmin"][track_var],track_vars["xmax"][track_var],track_vars["nbins"][track_var]))
+
+comp_bin_edges = []
+for comp_var in range(len(comp_vars)):
+    comp_bin_edges.append(np.linspace(comp_vars["xmin"][comp_var],comp_vars["xmax"][comp_var],comp_vars["nbins"][comp_var]))
 
 ## variable/arrays for use outside of operations loop
 
@@ -150,9 +163,12 @@ for track_var in range(len(track_vars)):
                             np.histogram([],bins = track_bin_edges[track_var])[0],
                             np.histogram([],bins = track_bin_edges[track_var])[0]])
 
-## More complicated vars
-
-
+comp_var_hists = []
+for comp_var in range(len(comp_vars)):
+    comp_var_hists.append([np.histogram([],bins = comp_bin_edges[comp_var])[0],
+                           np.histogram([],bins = comp_bin_edges[comp_var])[0],
+                           np.histogram([],bins = comp_bin_edges[comp_var])[0],
+                           np.histogram([],bins = comp_bin_edges[comp_var])[0]])
 
 ## Operations loop
 
@@ -189,16 +205,18 @@ while Continue == True:
         ## jet hists
 
         for jet_var in range(len(jet_vars)):
-            jet_var_hists[jet_var][count] += np.histogram(jets_arr[flav][jet_vars["name"][jet_var]], bins = jet_bin_edges[jet_var])[0]
+            jet_var_hists[jet_var][count] += np.histogram(jets_arr[flav][jet_vars["var"][jet_var]], bins = jet_bin_edges[jet_var])[0]
 
         ## track hists
 
         for track_var in range(len(track_vars)):
-            track_var_hists[track_var][count] += np.histogram(tracks_arr[flav][track_vars["name"][track_var]], bins = track_bin_edges[track_var])[0]
+            track_var_hists[track_var][count] += np.histogram(tracks_arr[flav][track_vars["var"][track_var]], bins = track_bin_edges[track_var])[0]
 
         ## more complex var hists
 
-        ntracks = np.sum(tracks_arr["valid"], axis=1)
+        for comp_var in range(len(comp_vars)):
+            comp_arr = comp_funcs[comp_var](tracks_arr[flav],comp_vars["var"][comp_var])
+            comp_var_hists[comp_var][count] += np.histogram(comp_arr, bins = comp_bin_edges[comp_var])[0]
 
     ## Progress Bar
     loop_perc = round(100*(loop_counter+1)/loop_target)
@@ -241,7 +259,7 @@ for jet_var in range(len(jet_vars)):
                                         flavour = flav_names[flav_index]))
 
     jet_histplot.draw()
-    jet_histplot.savefig(plotting_path+"jet/"+jet_vars["name"][jet_var]+"."+filetype)
+    jet_histplot.savefig(plotting_path+"jet/"+jet_vars["var"][jet_var]+"."+filetype)
 
 
 ## track var plots
@@ -265,4 +283,24 @@ for track_var in range(len(track_vars)):
                                         flavour = flav_names[flav_index]))
 
     track_histplot.draw()
-    track_histplot.savefig(plotting_path+"track/"+track_vars["name"][track_var]+"."+filetype)
+    track_histplot.savefig(plotting_path+"track/"+track_vars["var"][track_var]+"."+filetype)
+
+## comp var plots
+
+for comp_var in range(len(comp_vars)):
+
+    comp_histplot = puma.HistogramPlot(bins = comp_bin_edges[comp_var],
+                                       xlabel = comp_vars["label"][comp_var],
+                                       ylabel = "Normalised No. jets",
+                                       atlas_second_tag = preprocess,
+                                       logy = comp_vars["logy"][comp_var],
+                                       norm = True,
+                                       underoverflow = False)
+
+    for flav_index in range(4):
+        comp_histplot.add(puma.Histogram(comp_var_hists[comp_var][flav_index],
+                                         bin_edges = comp_bin_edges[comp_var],
+                                         flavour = flav_names[flav_index]))
+
+    comp_histplot.draw()
+    comp_histplot.savefig(plotting_path+comp_vars["jet or track"][comp_var]+"/"+comp_vars["name"][comp_var]+"."+filetype)

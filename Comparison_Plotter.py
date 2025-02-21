@@ -320,6 +320,33 @@ for Network_count, Network in enumerate(net_names):
 ####       Disc Plotting       ####
 ###################################
 
+disc_names = ["tau","b"]
+
+for Network_count, Network in enumerate(net_names):
+
+    if not os.path.exists(single_plotting_path+sample_names[Network_count]+"/discs/"):
+        os.mkdir(single_plotting_path+sample_names[Network_count]+"/discs/") 
+
+    ## 0 == tau-tagging
+    ## 1 == b-tagging
+    for disc_type in range(2):
+
+        disc_plot = puma.HistogramPlot(xlabel = disc_names[disc_type]+" discriminant",
+                                       ylabel = "Normalized No. jets",
+                                       atlas_second_tag = Network,
+                                       bins = 40,
+                                       norm = True,
+                                       underoverflow = False)
+        
+        for flavour_count, flavour in enumerate(flav_names):
+            if disc_type == 0:
+                disc_plot.add(puma.Histogram(NN_tau_discs[Network_count][Flav_Bools[flavour_count]],flavour = flavour))
+            else:
+                disc_plot.add(puma.Histogram(NN_b_discs[Network_count][Flav_Bools[flavour_count]],flavour = flavour))
+                
+        disc_plot.draw()
+        disc_plot.savefig(single_plotting_path+sample_names[Network_count]+"/discs/"+disc_names[disc_type]+"_disc."+filetype)
+
 ###################################
 ####     Int Eff Plotting      ####
 ###################################

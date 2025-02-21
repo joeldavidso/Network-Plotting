@@ -17,7 +17,9 @@ dir_path = "NetworkSamples/100_100_40_10/"
 file_end = "_test.h5"
 
 ## Locations for MCD Networks
-## Order should be in 4.6GeV > 1GeV > Global > Lucas Vars > All Vars Global 4.6GeV > All Vars Global 1GeV
+## Order should be in: 4.6GeV > 1GeV > Global
+#                      > Lucas Vars > Lucas Vars Global > 
+#                      > All Vars 4.6GeV > All Vars Global 4.6GeV > All Vars Global 1GeV
 ## MAXIMUM 3
 
 NET_SELECT = [0]
@@ -32,6 +34,17 @@ net_config_names = ["GNTau_6",
                     "GNTau_6",
                     "GNTau_6"]
 
+## True = GN2 and LVT included in network list | False = Not included
+comp_prior = True
+
+## Select which discriminant corrections to use
+## Available Choices: 
+## |"None" = No Correction|"1D" = Only Correct in pT|"2D" = Correct in Both pT and eta|"Both" = Correct and plot with both|
+correct = "1D"
+
+filetype = "png"
+
+## order nets for plotting and create directories
 NET_SELECT.sort()
 pop_count = 0
 for i in range(len(sample_names)):
@@ -48,9 +61,6 @@ for i in sample_names:
 for i,j in enumerate(net_names):
     net_names[i] = MCD_name+" "+j
 
-## True = GN2 and LVT included in network list | False = Not included
-comp_prior = True
-filetype = "png"
 
 ## plotting variables
 linestyles = ["solid","dashed","dotted","dashdot"]
@@ -58,6 +68,7 @@ linecolours = ["mediumviolet","darkorange","forestgreen","darkblue"]
 
 ## Sets plotting area
 plotting_path = "NetworkPlots/Comp_"+filetype+"/"
+single_plotting_path = "NetworkPlots/Comp_"+filetype+"/_"
 
 if not os.path.exists(plotting_path):
     os.mkdir(plotting_path)
@@ -213,6 +224,51 @@ if comp_prior:
 ####  Correction Calculations  ####
 ###################################
 
+
+# ## Disc Correction Bins
+
+# corr_bins_pt = np.load("NetworkCorrections/4dot6GeV_train/corr_bins_pt.npy")
+# corr_bins_eta = np.load("NetworkCorrections/4dot6GeV_train/corr_bins_eta.npy")
+
+# corr_bins_pt = np.append(corr_bins_pt,1e6)
+# corr_bins_eta = np.append(corr_bins_eta,1e6)
+
+# ## 1D Disc Corrections
+
+# corr_arr_pt = np.load("NetworkCorrections/4dot6GeV_train/corr_pt_b.npy")
+# corr_arr_pt = np.append(corr_arr_pt, [1])
+
+# corr_indexed_pt = np.digitize(jet_arrs["pt"]/1e3, corr_bins_pt, right=True)
+# corr_values_pt = np.array([corr_arr_pt[i-1] for i in corr_indexed_pt])
+
+
+# ## 2D Disc Corrections
+
+# corr_arr_2D_b = np.load("NetworkCorrections/4dot6GeV_train/corr_2D_b.npy")
+
+# corr_add_1 = np.ones((len(corr_arr_2D_b[:,0]),1),corr_arr_2D_b.dtype)
+# corr_arr_2D_b = np.concatenate((corr_arr_2D_b,corr_add_1),1)
+
+# corr_add_2 = np.ones((1,len(corr_arr_2D_b[0])),corr_arr_2D_b.dtype)
+# corr_arr_2D_b = np.concatenate((corr_arr_2D_b,corr_add_2),0)
+
+# corr_indexed_2D_pt = np.digitize(jet_arrs["pt"]/1e3, corr_bins_pt, right=True)
+# corr_indexed_2D_eta = np.digitize(np.absolute(jet_arrs["eta"]), corr_bins_eta, right=True)
+
+# corr_values_2D_b = []
+
+# for i in range(len(corr_indexed_pt)):
+#     corr_values_2D_b.append(corr_arr_2D_b[corr_indexed_2D_pt[i]-1][corr_indexed_2D_eta[i]-1])
+
+# corr_values_2D_b = np.array(corr_values_2D_b)
+
+
+# ## Change the NN_b discs
+
+# # NN_b_discs[dump] = NN_b_discs[dump] - np.log(corr_values_pt)
+# # NN_b_discs[dump] = NN_b_discs[dump] - np.log(corr_values_2D_b)
+
+
 ###################################
 ####  Rejection Calculations   ####
 ###################################
@@ -231,12 +287,46 @@ if comp_prior:
     GN2_rejs = puma.metrics.calc_rej(GN2_discs[is_b], GN2_discs[is_light], sig_eff)
     LVT_rejs = puma.metrics.calc_rej(LVT_discs[is_tau], LVT_discs[is_light], sig_eff)
 
+###################################
+####       Prob Plotting       ####
+###################################
+
+print("Plotting!")
+
+out_names = ["pu", "pc", "pb", "ptau"]
+
+for Network_count, Network in enumerate(net_names):
+
+    if not os.path.exists(single_plotting_path+sample_names[Network_count]+"/outputs/"):
+        os.mkdir(single_plotting_path+sample_names[Network_count]+"/outputs/") 
+
+    for output_count, output in enumerate(out_names):
+
+        output_plot = puma.HistogramPlot(xlabel = "Network "+output,
+                                         ylabel = "Normalized No. jets",
+                                         atlas_second_tag = Network,
+                                         bins = 40,
+                                         norm = True,
+                                         underoverflow = False)
+        
+        for flavour_count, flavour in enumerate(flav_names):
+            output_plot.add(puma.Histogram(jet_arrs[Flav_Bools[flavour_count]][net_config_names[Network_count]+"_"+output],
+                                           flavour = flavour))
+
+        output_plot.draw()
+        output_plot.savefig(single_plotting_path+sample_names[Network_count]+"/outputs/"+output+"."+filetype)
+
+###################################
+####       Disc Plotting       ####
+###################################
+
+###################################
+####     Int Eff Plotting      ####
+###################################
 
 ###################################
 ####        ROC Plotting       ####
 ###################################
-
-print("Plotting!")
 
 plotting_area = "ROC"
 plotting_path = plotting_path+plotting_area

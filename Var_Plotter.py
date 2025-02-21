@@ -53,20 +53,24 @@ jet_vars = np.array([("pt", "$p_T$ [MeV]", 40, 20_000, 250_000, True, "All"),
                      dtype = dtype)
 
 track_vars = np.array([("pt", "$p_T$ [MeV]", 40, 20_000, 250_000, True, "All"),
-                       ("z0SinTheta", "$z_0sin(\theta)$", 40, -10, 10, False, "Lucas")],
+                       ("z0SinTheta", "$z_0$sin($\theta$)", 40, -10, 10, False, "Lucas")],
                        dtype = dtype)
 
 ## Complex variables
 
 # function definintions
 
-def sum_over_tracks(tracks, variable):
-    return np.nansum(tracks[variable], axis = 1)
+def sum_over_tracks(tracks, track_variables, jets, jet_variables):
+    return np.nansum(tracks[track_variables[0]], axis = 1)
+
+def sum_over_tracks_ratio(tracks, track_variables, jets, jet_variables):
+    return np.divide(np.nansum(tracks[track_variables[0]], axis = 1),jets[jet_variables[0]])
+
 
 # array creations
 
 dtype = np.dtype([("name", "U32"),
-                  ("var", "U32"),
+                  ("vars", object),
                   ("label", "U32"),
                   ("nbins",np.int32),
                   ("xmin",np.float64),
@@ -75,11 +79,15 @@ dtype = np.dtype([("name", "U32"),
                   ("set", "U32"),
                   ("jet or track", "U32")])
 
-comp_vars = np.array([("ntracks", "valid", "nTracks", 20, 0, 20, False, "All", "jet"),
-                      ("pt_summed_trackes", "pt", "summed track $p_T$ [MeV]", 40, 20_000, 250_000, True, "All", "jet")],
+comp_vars = np.array([("ntracks", [[],["valid"]], "nTracks", 20, 0, 20, False, "All", "jet"),
+                      ("pt_summed_tracks", [[],["pt"]], "summed track $p_T$ [MeV]", 40, 20_000, 250_000, True, "All", "jet"),
+                      ("pt_summed_tracks_ratio", [["pt"],["pt"]], "ratio of $\Sigma$ $p_T$(tracks) to $\Sigma$ $p_T$(jets)", 40, 0, 1, True, "All", "jet"),
+                      ("pt_frac_summed", [[],["ptfrac"]], "sum of $p_T$ fractions of jet $p_T$", 40, 0, 1, True, "All", "jet")],
                       dtype = dtype)
-
-comp_funcs = [sum_over_tracks, sum_over_tracks]
+comp_funcs = [sum_over_tracks,
+              sum_over_tracks, 
+              sum_over_tracks_ratio, 
+              sum_over_tracks]
 
 ## Select which variables are plotted
 
@@ -215,7 +223,8 @@ while Continue == True:
         ## more complex var hists
 
         for comp_var in range(len(comp_vars)):
-            comp_arr = comp_funcs[comp_var](tracks_arr[flav],comp_vars["var"][comp_var])
+            comp_arr = comp_funcs[comp_var](tracks_arr[flav],comp_vars["vars"][comp_var][1],
+                                            jets_arr[flav],comp_vars["vars"][comp_var][0])
             comp_var_hists[comp_var][count] += np.histogram(comp_arr, bins = comp_bin_edges[comp_var])[0]
 
     ## Progress Bar

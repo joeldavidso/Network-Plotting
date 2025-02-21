@@ -26,16 +26,36 @@ NET_SELECT = [0]
 
 sample_names = ["4dot6GeV",
                 "1GeV",
-                "global"]
+                "4dot6GeV_global",
+                "4dot6GeV_lucas_vars",
+                "4dot6GeV_lucas_vars_global",
+                "4dot6GeV_all_vars",
+                "4dt6GeV_all_vars_global"]
+save_names = ["5",
+              "1",
+              "5Global",
+              "5Lucas",
+              "5LucasGlobal",
+              "5All",
+              "5AllGlobal"]
 net_names = ["@ 4.6GeV",
              "@ 1GeV",
-             "(global)"]
+             "@ 4.6GeV (Global)",
+             "@ 4.6GeV Lucas Vars",
+             "@ 4.6GeV Lucas Vars (Global)",
+             "@ 4.6GeV All Vars",
+             "@ 4.6GeV All Vars (Global)"]
 net_config_names = ["GNTau_6",
                     "GNTau_6",
-                    "GNTau_6"]
+                    "GNTau_6",
+                    "GNTau_Lucas_Vars",
+                    "GNTau_Global_Lucas_Vars",
+                    "GNTau_All_Vars_5GeV",
+                    "GNTau_Global_All_Vars_5GeV"
+                    ]
 
 ## True = GN2 and LVT included in network list | False = Not included
-comp_prior = True
+comp_prior = False
 
 ## Select which discriminant corrections to use
 ## Available Choices: 
@@ -50,6 +70,7 @@ pop_count = 0
 for i in range(len(sample_names)):
     if i not in NET_SELECT:
         sample_names.pop(i-pop_count)
+        save_names.pop(i-pop_count)
         net_names.pop(i-pop_count)
         net_config_names.pop(i-pop_count)
         pop_count += 1
@@ -73,7 +94,7 @@ single_plotting_path = "NetworkPlots/Comp_"+filetype+"/_"
 if not os.path.exists(plotting_path):
     os.mkdir(plotting_path)
 
-for name in sample_names:
+for name in save_names:
     plotting_path = plotting_path + "_"+ name
 
 if comp_prior:
@@ -297,8 +318,8 @@ out_names = ["pu", "pc", "pb", "ptau"]
 
 for Network_count, Network in enumerate(net_names):
 
-    if not os.path.exists(single_plotting_path+sample_names[Network_count]+"/outputs/"):
-        os.mkdir(single_plotting_path+sample_names[Network_count]+"/outputs/") 
+    if not os.path.exists(single_plotting_path+save_names[Network_count]+"/outputs/"):
+        os.mkdir(single_plotting_path+save_names[Network_count]+"/outputs/") 
 
     for output_count, output in enumerate(out_names):
 
@@ -314,7 +335,7 @@ for Network_count, Network in enumerate(net_names):
                                            flavour = flavour))
 
         output_plot.draw()
-        output_plot.savefig(single_plotting_path+sample_names[Network_count]+"/outputs/"+output+"."+filetype)
+        output_plot.savefig(single_plotting_path+save_names[Network_count]+"/outputs/"+output+"."+filetype)
 
 ###################################
 ####       Disc Plotting       ####
@@ -324,8 +345,8 @@ disc_names = ["tau","b"]
 
 for Network_count, Network in enumerate(net_names):
 
-    if not os.path.exists(single_plotting_path+sample_names[Network_count]+"/discs/"):
-        os.mkdir(single_plotting_path+sample_names[Network_count]+"/discs/") 
+    if not os.path.exists(single_plotting_path+save_names[Network_count]+"/discs/"):
+        os.mkdir(single_plotting_path+save_names[Network_count]+"/discs/") 
 
     ## 0 == tau-tagging
     ## 1 == b-tagging
@@ -343,9 +364,9 @@ for Network_count, Network in enumerate(net_names):
                 disc_plot.add(puma.Histogram(NN_tau_discs[Network_count][Flav_Bools[flavour_count]],flavour = flavour))
             else:
                 disc_plot.add(puma.Histogram(NN_b_discs[Network_count][Flav_Bools[flavour_count]],flavour = flavour))
-                
+
         disc_plot.draw()
-        disc_plot.savefig(single_plotting_path+sample_names[Network_count]+"/discs/"+disc_names[disc_type]+"_disc."+filetype)
+        disc_plot.savefig(single_plotting_path+save_names[Network_count]+"/discs/"+disc_names[disc_type]+"_disc."+filetype)
 
 ###################################
 ####     Int Eff Plotting      ####

@@ -8,21 +8,45 @@ from ftag import Flavours # type: ignore
 import os # type: ignore
 
 ###################################
+####           To Do           ####
+###################################
+
+# Plots to include:
+    # Integrated Efficiency 
+    # Eta vs Rej/Eff 
+    # 
+# Other:
+    # Change ploting directory for correction plots
+    # Fix Legend Positioning/Size
+    # Run Corrections with b/light disc only
+
+###################################
 ####       Configuration       ####
 ###################################
 
 MCD_name = "$u$ vs $c$ vs $b$ vs $\\tau$"
 
-dir_path = "NetworkSamples/100_100_40_10/"
+dir_path = "NetworkSamples/test/"
 file_end = "_test.h5"
 
 ## Locations for MCD Networks
 ## Order should be in: 4.6GeV > 1GeV > Global
 #                      > Lucas Vars > Lucas Vars Global > 
 #                      > All Vars 4.6GeV > All Vars Global 4.6GeV > All Vars Global 1GeV
-## MAXIMUM 3
+## MAXIMUM 3 (including pior)
 
-NET_SELECT = [0]
+NET_SELECT = [6]
+
+## True = GN2 and LVT included in network list | False = Not included
+comp_prior = True
+
+## Select which discriminant corrections to use
+## Available Choices: 
+## |"None" = No Correction|"1D" = Only Correct in pT|"2D" = Correct in Both pT and eta|"Both" = Correct and plot with both|
+correct = "1D"
+
+filetype = "png"
+
 
 sample_names = ["4dot6GeV",
                 "1GeV",
@@ -30,7 +54,7 @@ sample_names = ["4dot6GeV",
                 "4dot6GeV_lucas_vars",
                 "4dot6GeV_lucas_vars_global",
                 "4dot6GeV_all_vars",
-                "4dt6GeV_all_vars_global"]
+                "4dot6GeV_all_vars_global"]
 save_names = ["5",
               "1",
               "5Global",
@@ -40,7 +64,7 @@ save_names = ["5",
               "5AllGlobal"]
 net_names = ["@ 4.6GeV",
              "@ 1GeV",
-             "@ 4.6GeV (Global)",
+             "@ 4.6GeV \n (Global)",
              "@ 4.6GeV Lucas Vars",
              "@ 4.6GeV Lucas Vars (Global)",
              "@ 4.6GeV All Vars",
@@ -54,15 +78,6 @@ net_config_names = ["GNTau_6",
                     "GNTau_Global_All_Vars_5GeV"
                     ]
 
-## True = GN2 and LVT included in network list | False = Not included
-comp_prior = False
-
-## Select which discriminant corrections to use
-## Available Choices: 
-## |"None" = No Correction|"1D" = Only Correct in pT|"2D" = Correct in Both pT and eta|"Both" = Correct and plot with both|
-correct = "1D"
-
-filetype = "png"
 
 ## order nets for plotting and create directories
 NET_SELECT.sort()
@@ -143,7 +158,6 @@ is_c =[]
 is_b = []
 is_tau = []
 
-## Loop over ALL jets then TRACKLESS jets
 for Network_count, Network in enumerate(sample_filepaths):
     with h5py.File(Network,"r") as h5file:
 
@@ -196,8 +210,8 @@ NN_tau_discs = []
 
 for Network_count in range(len(sample_filepaths)):
     NN_b_discs.append(np.apply_along_axis(b_disc, 0, [NN_dataframes[Network_count]["pu"],
-                                                        NN_dataframes[Network_count]["pc"],
-                                                        NN_dataframes[Network_count]["pb"]]))
+                                                      NN_dataframes[Network_count]["pc"],
+                                                      NN_dataframes[Network_count]["pb"]]))
 
     NN_tau_discs.append(np.apply_along_axis(tau_disc, 0, [NN_dataframes[Network_count]["pu"],
                                                           NN_dataframes[Network_count]["ptau"]]))
@@ -245,49 +259,104 @@ if comp_prior:
 ####  Correction Calculations  ####
 ###################################
 
+## Select which correction file to use
+## 4 Corrections to use:
+## |4.6GeV, Joel|1GeV, Joel|4.6GeV, All|1GeV, All|
 
-# ## Disc Correction Bins
+if len(NET_SELECT) != 1:
+    raise Exception("Correction plotting only supports one network at a time!")
 
-# corr_bins_pt = np.load("NetworkCorrections/4dot6GeV_train/corr_bins_pt.npy")
-# corr_bins_eta = np.load("NetworkCorrections/4dot6GeV_train/corr_bins_eta.npy")
+if correct and len(NET_SELECT) == 1:
 
-# corr_bins_pt = np.append(corr_bins_pt,1e6)
-# corr_bins_eta = np.append(corr_bins_eta,1e6)
+    ## get corrections name
+    corr_binning_name = "4dot6GeV"
+    corr_vars_name = ""
 
-# ## 1D Disc Corrections
+    if "1GeV" in sample_names[Network_count]:
+        corr_binning_name = "1GeV"
+    if "all" in sample_names[Network_count] or "lucas" in sample_names[Network_count]:
+        corr_vars_name = "_Lucas"
 
-# corr_arr_pt = np.load("NetworkCorrections/4dot6GeV_train/corr_pt_b.npy")
-# corr_arr_pt = np.append(corr_arr_pt, [1])
+    corr_net_name = corr_binning_name+corr_vars_name
 
-# corr_indexed_pt = np.digitize(jet_arrs["pt"]/1e3, corr_bins_pt, right=True)
-# corr_values_pt = np.array([corr_arr_pt[i-1] for i in corr_indexed_pt])
+    corr_filepath = "NetworkCorrections/"+corr_net_name+"/"
 
+    ## grab binnings
+    corr_bins_pt = np.load(corr_filepath+"corr_bins_pt.npy")
+    corr_bins_eta = np.load(corr_filepath+"corr_bins_eta.npy")
 
-# ## 2D Disc Corrections
-
-# corr_arr_2D_b = np.load("NetworkCorrections/4dot6GeV_train/corr_2D_b.npy")
-
-# corr_add_1 = np.ones((len(corr_arr_2D_b[:,0]),1),corr_arr_2D_b.dtype)
-# corr_arr_2D_b = np.concatenate((corr_arr_2D_b,corr_add_1),1)
-
-# corr_add_2 = np.ones((1,len(corr_arr_2D_b[0])),corr_arr_2D_b.dtype)
-# corr_arr_2D_b = np.concatenate((corr_arr_2D_b,corr_add_2),0)
-
-# corr_indexed_2D_pt = np.digitize(jet_arrs["pt"]/1e3, corr_bins_pt, right=True)
-# corr_indexed_2D_eta = np.digitize(np.absolute(jet_arrs["eta"]), corr_bins_eta, right=True)
-
-# corr_values_2D_b = []
-
-# for i in range(len(corr_indexed_pt)):
-#     corr_values_2D_b.append(corr_arr_2D_b[corr_indexed_2D_pt[i]-1][corr_indexed_2D_eta[i]-1])
-
-# corr_values_2D_b = np.array(corr_values_2D_b)
+    corr_bins_pt = np.append(corr_bins_pt,1e6)
+    corr_bins_eta = np.append(corr_bins_eta,1e6)
 
 
-# ## Change the NN_b discs
+    corr_arrs = [np.load(corr_filepath+"corr_"+correct+"_b.npy"),
+                    np.load(corr_filepath+"corr_"+correct+"_tau.npy")]
+    corr_indexed_pt = [0,0]
+    corr_indexed_eta = [0,0]
+    corr_values = [0,0]
+    
 
-# # NN_b_discs[dump] = NN_b_discs[dump] - np.log(corr_values_pt)
-# # NN_b_discs[dump] = NN_b_discs[dump] - np.log(corr_values_2D_b)
+    ## Get corrections
+    if correct == "1D":
+
+        for i in range(2):
+
+            corr_arrs[i] = np.append(corr_arrs[i],[1])
+            corr_indexed_pt[i] = np.digitize(jet_arrs["pt"]/1e3, corr_bins_pt, right=True)
+            corr_values[i] = np.array([corr_arrs[i][j-1] for j in corr_indexed_pt[i]])
+
+
+
+    if correct == "2D":
+
+        for i in range(2):
+
+            corr_add_1 = np.ones((len(corr_arrs[i][:,0]),1),corr_arrs[i].dtype)
+            corr_arrs[i]= np.concatenate((corr_arrs[i],corr_add_1),1)
+
+            corr_add_2 = np.ones((1,len(corr_arrs[i][0])),corr_arrs[i].dtype)
+            corr_arrs[i] = np.concatenate((corr_arrs[i],corr_add_2),0)
+
+            corr_indexed_pt[i] = np.digitize(jet_arrs["pt"]/1e3, corr_bins_pt, right=True)
+            corr_indexed_eta[i] = np.digitize(np.absolute(jet_arrs["eta"]), corr_bins_eta, right=True)
+
+            if len(corr_indexed_pt[i]) != len(corr_indexed_eta[i]): 
+                raise Exception("pt and eta correction array wrong lengths")
+
+            corr_values_2D_b = []
+
+            for j in range(len(corr_indexed_pt[i])):
+                corr_values_2D_b.append(corr_arrs[i][corr_indexed_pt[i][j]-1][corr_indexed_eta[i][j]-1])
+
+## Change the NN discs
+
+    for Network_count in range(len(net_names)):
+        NN_b_discs.append(NN_b_discs[Network_count] - np.log(corr_values[0]))
+        NN_tau_discs.append(NN_tau_discs[Network_count] - np.log(corr_values[1]))
+
+## add WP lines
+
+
+    NN_b_working_point_values_temp = []
+    NN_tau_working_point_values_temp = []
+
+    for WP in working_points:
+        NN_b_working_point_values_temp.append(working_point_disc(NN_b_discs[1][is_b],WP))
+        NN_tau_working_point_values_temp.append(working_point_disc(NN_tau_discs[1][is_tau],WP))
+
+    NN_b_working_point_values.append(NN_b_working_point_values_temp)
+    NN_tau_working_point_values.append(NN_tau_working_point_values_temp)
+
+
+## Add to network lists for plotting
+
+    net_names.append(net_names[0]+"_corr")
+    save_names.append(save_names[0]+"_corr")
+
+    plotting_path = plotting_path[:-1]+"_corr/"
+
+    if not os.path.exists(plotting_path):
+        os.mkdir(plotting_path)
 
 
 ###################################
@@ -300,7 +369,7 @@ sig_eff = np.linspace(0.5,1,50)
 NN_b_rejs = []
 NN_tau_rejs = []
 
-for Network_count in range(len(sample_filepaths)):
+for Network_count in range(len(net_names)):
     NN_b_rejs.append(puma.metrics.calc_rej(NN_b_discs[Network_count][is_b], NN_b_discs[Network_count][is_light], sig_eff))
     NN_tau_rejs.append(puma.metrics.calc_rej(NN_tau_discs[Network_count][is_tau], NN_tau_discs[Network_count][is_light], sig_eff))
 
@@ -319,7 +388,11 @@ out_names = ["pu", "pc", "pb", "ptau"]
 for Network_count, Network in enumerate(net_names):
 
     if not os.path.exists(single_plotting_path+save_names[Network_count]+"/outputs/"):
-        os.mkdir(single_plotting_path+save_names[Network_count]+"/outputs/") 
+        os.mkdir(single_plotting_path+save_names[Network_count]+"/")
+        os.mkdir(single_plotting_path+save_names[Network_count]+"/outputs/")  
+
+    if correct and Network_count == 1:
+        break
 
     for output_count, output in enumerate(out_names):
 
@@ -331,7 +404,7 @@ for Network_count, Network in enumerate(net_names):
                                          underoverflow = False)
         
         for flavour_count, flavour in enumerate(flav_names):
-            output_plot.add(puma.Histogram(jet_arrs[Flav_Bools[flavour_count]][net_config_names[Network_count]+"_"+output],
+            output_plot.add(puma.Histogram(NN_dataframes[Network_count][output],
                                            flavour = flavour))
 
         output_plot.draw()
@@ -365,8 +438,23 @@ for Network_count, Network in enumerate(net_names):
             else:
                 disc_plot.add(puma.Histogram(NN_b_discs[Network_count][Flav_Bools[flavour_count]],flavour = flavour))
 
+        if disc_type == 0:
+            disc_plot.draw_vlines(xs = NN_tau_working_point_values[Network_count],
+                                labels = working_point_labels,
+                                ys = 0.6*np.linspace(1,1-0.1*len(working_points),len(working_points)),
+                                linestyle = "solid",
+                                fontsize = 5)
+        else:
+            disc_plot.draw_vlines(xs = NN_b_working_point_values[Network_count],
+                                  labels = working_point_labels,
+                                  ys = 0.6*np.linspace(1,1-0.1*len(working_points),len(working_points)),
+                                  linestyle = "solid",
+                                  fontsize = 5)
+
+
         disc_plot.draw()
         disc_plot.savefig(single_plotting_path+save_names[Network_count]+"/discs/"+disc_names[disc_type]+"_disc."+filetype)
+
 
 ###################################
 ####     Int Eff Plotting      ####

@@ -9,8 +9,8 @@ import os # type: ignore
 
 filetype = "png"
 
-preprocess = "1GeV_train"
-ttbar_filepath = "NetworkSamples/100_100_40_10/"+preprocess+".h5"
+preprocess = "1GeV_Lucas"
+ttbar_filepath = "NetworkSamples/train/"+preprocess+".h5"
 
 plotting_path = "NetworkPlots/Corrections_"+filetype+"/"
 corrections_path = "NetworkCorrections/"+preprocess+"/"
@@ -42,10 +42,13 @@ bar_length = 100
 
 ## which flavour is signal and background
 ## 0 = light | 1 = c | 2 = b | 3 = tau
-signal_index = 2
-background_index = 0
+signal_indexs = [2,3]
+background_indexs = [0,0]
 
-BINS = 46*5
+if "4dot6GeV" in preprocess:
+    BINS = 10*5
+elif "1GeV" in preprocess:
+    BINS = 46*5
 BINSRANGE = [20,66]
 BINWIDTH = (BINSRANGE[1]-BINSRANGE[0])/BINS
 
@@ -136,116 +139,131 @@ while Continue == True:
 print(" "*(bar_length+20),end="\r")
 print("Total of "+str(loop_target*jets_per_batch/1_000_000)+" million jets collected!")
 
+## Reweight hists to equal light jets
 
-PT_ETA_RATIO_2D = np.divide(PT_ETA_2D[signal_index],PT_ETA_2D[background_index])
+weight_light = np.sum(PT_ETA_2D[0])
 
-PT_RATIO_1D = np.divide(PT_ETA_2D[signal_index].sum(axis=1),PT_ETA_2D[background_index].sum(axis=1))
-ETA_RATIO_1D = np.divide(PT_ETA_2D[signal_index].sum(axis=0),PT_ETA_2D[background_index].sum(axis=0))
+for count, flav in enumerate(flav_bool):
+    PT_ETA_2D[count] = PT_ETA_2D[count] * (weight_light/np.sum(PT_ETA_2D[count]))
 
-## Saving
+for sig_count, signal_index in enumerate(signal_indexs):
 
-np.save(corrections_path+"corr_2D_b",PT_ETA_RATIO_2D)
-np.save(corrections_path+"corr_bins_pt", pt_edges)
-np.save(corrections_path+"corr_bins_eta",eta_edges)
+    background_index = background_indexs[sig_count]
 
-np.save(corrections_path+"corr_pt_b",PT_RATIO_1D)
+    PT_ETA_RATIO_2D = np.divide(PT_ETA_2D[signal_index],PT_ETA_2D[background_index])
 
-## Plotting
+    PT_RATIO_1D = np.divide(PT_ETA_2D[signal_index].sum(axis=1),PT_ETA_2D[background_index].sum(axis=1))
+    ETA_RATIO_1D = np.divide(PT_ETA_2D[signal_index].sum(axis=0),PT_ETA_2D[background_index].sum(axis=0))
 
-## pt dist
-histplot_pt = puma.HistogramPlot(bins = pt_edges,
-                                 n_ratio_panels = 1,
-                                 xlabel = "$p_T$ [GeV]",
-                                 ylabel = "Normalised No. Jets",
-                                 atlas_second_tag = preprocess+", binned @ "+str(BINWIDTH)+"GeV",
-                                 logy = False,
-                                 norm = True,
-                                 underoverflow = False)
+    ## Saving
 
-histplot_pt.add(puma.Histogram(PT_ETA_2D[signal_index].sum(axis=1),
-                                bin_edges = pt_edges,
-                                flavour = flav_names[signal_index]),
-                                reference = True)
+    if signal_index == 2:
+        sig_name = "b"
+    elif signal_index == 3:
+        sig_name = "tau"
 
-histplot_pt.add(puma.Histogram(PT_ETA_2D[background_index].sum(axis=1),
-                                bin_edges = pt_edges,
-                                flavour = flav_names[background_index]))
+    np.save(corrections_path+"corr_2D_"+sig_name,PT_ETA_RATIO_2D)
+    np.save(corrections_path+"corr_bins_pt", pt_edges)
+    np.save(corrections_path+"corr_bins_eta",eta_edges)
 
-histplot_pt.draw()
-histplot_pt.savefig(plotting_path+"/pt."+filetype)
+    np.save(corrections_path+"corr_1D_"+sig_name,PT_RATIO_1D)
 
-## eta dist
+    ## Plotting
 
-histplot_eta = puma.HistogramPlot(bins = eta_edges,
-                                  n_ratio_panels = 1,
-                                  xlabel = "$\eta$",
-                                  ylabel = "Normalised No. Jets",
-                                  atlas_second_tag = preprocess+", binned @ "+str(BINWIDTH_ETA),
-                                  logy = False,
-                                  norm = True,
-                                  underoverflow = False)
+    ## pt dist
+    histplot_pt = puma.HistogramPlot(bins = pt_edges,
+                                    n_ratio_panels = 1,
+                                    xlabel = "$p_T$ [GeV]",
+                                    ylabel = "Normalised No. Jets",
+                                    atlas_second_tag = preprocess+", binned @ "+str(BINWIDTH)+"GeV",
+                                    logy = False,
+                                    norm = True,
+                                    underoverflow = False)
 
-histplot_eta.add(puma.Histogram(PT_ETA_2D[signal_index].sum(axis=0),
-                                bin_edges = eta_edges,
-                                flavour = flav_names[signal_index]),
-                                reference = True)
+    histplot_pt.add(puma.Histogram(PT_ETA_2D[signal_index].sum(axis=1),
+                                    bin_edges = pt_edges,
+                                    flavour = flav_names[signal_index]),
+                                    reference = True)
 
-histplot_eta.add(puma.Histogram(PT_ETA_2D[background_index].sum(axis=0),
-                                bin_edges = eta_edges,
-                                flavour = flav_names[background_index]))
+    histplot_pt.add(puma.Histogram(PT_ETA_2D[background_index].sum(axis=1),
+                                    bin_edges = pt_edges,
+                                    flavour = flav_names[background_index]))
 
-histplot_eta.draw()
-histplot_eta.savefig(plotting_path+"/eta."+filetype)
+    histplot_pt.draw()
+    histplot_pt.savefig(plotting_path+"/pt_"+sig_name+"."+filetype)
 
-# 2D Dist:
+    ## eta dist
 
-fig = plt.figure()
-ax = plt.axes((0.1,0.1,0.8,0.8))
-ax.set_aspect("auto")
-plt.matshow(np.log(PT_ETA_RATIO_2D),fignum=0)
-plt.gca().set_aspect(BINS_ETA/BINS)
-cbar = plt.colorbar(label = "log(b/light)")
+    histplot_eta = puma.HistogramPlot(bins = eta_edges,
+                                    n_ratio_panels = 1,
+                                    xlabel = "$\eta$",
+                                    ylabel = "Normalised No. Jets",
+                                    atlas_second_tag = preprocess+", binned @ "+str(BINWIDTH_ETA),
+                                    logy = False,
+                                    norm = True,
+                                    underoverflow = False)
 
-ax.set_xticks(eta_edges[0:-1:4]*eta_scale)
-ax.set_yticks((pt_edges_ticks[0:-1:10]-20)*pt_scale)
+    histplot_eta.add(puma.Histogram(PT_ETA_2D[signal_index].sum(axis=0),
+                                    bin_edges = eta_edges,
+                                    flavour = flav_names[signal_index]),
+                                    reference = True)
 
-ax.set_xticklabels(eta_edges[0:-1:4])
-ax.set_yticklabels(pt_edges_ticks[0:-1:10])
+    histplot_eta.add(puma.Histogram(PT_ETA_2D[background_index].sum(axis=0),
+                                    bin_edges = eta_edges,
+                                    flavour = flav_names[background_index]))
 
-ax.set_yticks((pt_edges_ticks[0:-1:2]-20)*pt_scale,minor=True)
-ax.set_xticks(eta_edges[0:-1:1]*eta_scale,minor=True)
+    histplot_eta.draw()
+    histplot_eta.savefig(plotting_path+"/eta_"+sig_name+"."+filetype)
 
-ax.set_xlabel("|$\\eta$|")
-ax.set_ylabel("p$_T$ [GeV]")
-ax.xaxis.set_label_position('top') 
+    # 2D Dist:
 
-plt.savefig(plotting_path+"/corrections_2D."+filetype)
-plt.clf()
-plt.cla()
-#####
+    fig = plt.figure()
+    ax = plt.axes((0.1,0.1,0.8,0.8))
+    ax.set_aspect("auto")
+    plt.matshow(np.log(PT_ETA_RATIO_2D),fignum=0)
+    plt.gca().set_aspect(BINS_ETA/BINS)
+    cbar = plt.colorbar(label = "log("+sig_name+"/light)")
 
-zoomed_pt_bins = 40
-zoomed_eta_bins = -1
+    ax.set_xticks(eta_edges[0:-1:4]*eta_scale)
+    ax.set_yticks((pt_edges_ticks[0:-1:10]-20)*pt_scale)
 
-fig = plt.figure()
-ax = plt.axes((0.1,0.1,0.8,0.8))
-plt.matshow(np.log(PT_ETA_RATIO_2D[:zoomed_pt_bins,:]),fignum=0)
-plt.gca().set_aspect(BINS_ETA/zoomed_pt_bins)
-cbar = plt.colorbar(label = "log(b/light)")
+    ax.set_xticklabels(eta_edges[0:-1:4])
+    ax.set_yticklabels(pt_edges_ticks[0:-1:10])
 
-zoomed_tick_bin_pt = int(np.floor(pt_edges[zoomed_pt_bins]))-20
+    ax.set_yticks((pt_edges_ticks[0:-1:2]-20)*pt_scale,minor=True)
+    ax.set_xticks(eta_edges[0:-1:1]*eta_scale,minor=True)
 
-ax.set_xticks(eta_edges[0:zoomed_eta_bins:4]*eta_scale)
-ax.set_yticks((pt_edges_ticks[0:zoomed_tick_bin_pt:5]-20)*pt_scale)
+    ax.set_xlabel("|$\\eta$|")
+    ax.set_ylabel("p$_T$ [GeV]")
+    ax.xaxis.set_label_position('top') 
 
-ax.set_xticklabels(eta_edges[0:zoomed_eta_bins:4])
-ax.set_yticklabels(pt_edges_ticks[0:zoomed_tick_bin_pt:5])
+    plt.savefig(plotting_path+"/corrections_2D_"+sig_name+"."+filetype)
+    plt.clf()
+    plt.cla()
+    #####
 
-ax.set_yticks((pt_edges_ticks[0:zoomed_tick_bin_pt:1]-20)*pt_scale,minor=True)
-ax.set_xticks(eta_edges[0:zoomed_eta_bins:1]*eta_scale,minor=True)
+    zoomed_pt_bins = 40
+    zoomed_eta_bins = -1
 
-ax.set_xlabel("|$\\eta$|")
-ax.set_ylabel("p$_T$ [GeV]")
-ax.xaxis.set_label_position('top') 
+    fig = plt.figure()
+    ax = plt.axes((0.1,0.1,0.8,0.8))
+    plt.matshow(np.log(PT_ETA_RATIO_2D[:zoomed_pt_bins,:]),fignum=0)
+    plt.gca().set_aspect(BINS_ETA/zoomed_pt_bins)
+    cbar = plt.colorbar(label = "log("+sig_name+"/light)")
 
-plt.savefig(plotting_path+"/Corrections_2D_zoomed."+filetype)
+    zoomed_tick_bin_pt = int(np.floor(pt_edges[zoomed_pt_bins]))-20
+
+    ax.set_xticks(eta_edges[0:zoomed_eta_bins:4]*eta_scale)
+    ax.set_yticks((pt_edges_ticks[0:zoomed_tick_bin_pt:5]-20)*pt_scale)
+
+    ax.set_xticklabels(eta_edges[0:zoomed_eta_bins:4])
+    ax.set_yticklabels(pt_edges_ticks[0:zoomed_tick_bin_pt:5])
+
+    ax.set_yticks((pt_edges_ticks[0:zoomed_tick_bin_pt:1]-20)*pt_scale,minor=True)
+    ax.set_xticks(eta_edges[0:zoomed_eta_bins:1]*eta_scale,minor=True)
+    ""
+    ax.set_xlabel("|$\\eta$|")
+    ax.set_ylabel("p$_T$ [GeV]")
+    ax.xaxis.set_label_position('top') 
+
+    plt.savefig(plotting_path+"/Corrections_2D_"+sig_name+"_zoomed."+filetype)

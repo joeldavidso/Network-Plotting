@@ -12,13 +12,14 @@ import os # type: ignore
 ###################################
 
 # Plots to include:
-    # Integrated Efficiency 
-    # Eta vs Rej/Eff 
-    # 
+    # Solo Plots for LVT and GN2 for:
+        # rej
+        # eff
+        # ROC,
+        # Integrated Efficiency
+        # Output
 # Other:
-    # Change ploting directory for correction plots
     # Fix Legend Positioning/Size
-    # Run Corrections with b/light disc only
 
 ###################################
 ####       Configuration       ####
@@ -35,17 +36,17 @@ file_end = "_test.h5"
 #                      > All Vars 4.6GeV > All Vars Global 4.6GeV > All Vars Global 1GeV
 ## MAXIMUM 3 (including pior)
 
-NET_SELECT = [6]
+NET_SELECT = [0]
 
 ## True = GN2 and LVT included in network list | False = Not included
 comp_prior = True
 
 ## Select which discriminant corrections to use
 ## Available Choices: 
-## |"None" = No Correction|"1D" = Only Correct in pT|"2D" = Correct in Both pT and eta|"Both" = Correct and plot with both|
-correct = "1D"
+## |None = No Correction|"1D" = Only Correct in pT|"2D" = Correct in Both pT and eta|"Both" = Correct and plot with both|
+correct = None
 
-filetype = "png"
+filetype = "pdf"
 
 
 sample_names = ["4dot6GeV",
@@ -62,7 +63,7 @@ save_names = ["5",
               "5LucasGlobal",
               "5All",
               "5AllGlobal"]
-net_names = ["@ 4.6GeV",
+net_names = ["",
              "@ 1GeV",
              "@ 4.6GeV \n (Global)",
              "@ 4.6GeV Lucas Vars",
@@ -410,11 +411,13 @@ for Network_count, Network in enumerate(net_names):
         output_plot.draw()
         output_plot.savefig(single_plotting_path+save_names[Network_count]+"/outputs/"+output+"."+filetype)
 
+
 ###################################
 ####       Disc Plotting       ####
 ###################################
 
 disc_names = ["tau","b"]
+
 
 for Network_count, Network in enumerate(net_names):
 
@@ -455,10 +458,82 @@ for Network_count, Network in enumerate(net_names):
         disc_plot.draw()
         disc_plot.savefig(single_plotting_path+save_names[Network_count]+"/discs/"+disc_names[disc_type]+"_disc."+filetype)
 
+prior_names = ["LVT","GN2"]
+
+if comp_prior:
+    if not os.path.exists(single_plotting_path+"GN2/discs/"):
+        os.mkdir(single_plotting_path+"GN2") 
+        os.mkdir(single_plotting_path+"GN2/discs/") 
+    if not os.path.exists(single_plotting_path+"LVT/discs/"):
+        os.mkdir(single_plotting_path+"LVT/")
+        os.mkdir(single_plotting_path+"LVT/discs/")  
+
+    for disc_type in range(2):
+
+            disc_plot = puma.HistogramPlot(xlabel = disc_names[disc_type]+" discriminant",
+                                           ylabel = "Normalized No. jets",
+                                           atlas_second_tag = prior_names[disc_type],
+                                           bins = 40,
+                                           norm = True,
+                                           underoverflow = False)
+            
+            for flavour_count, flavour in enumerate(flav_names):
+                if disc_type == 0:
+                    if flavour == "taujets" or flavour == "ujets":
+                        disc_plot.add(puma.Histogram(LVT_discs[Flav_Bools[flavour_count]],flavour = flavour))
+                else:
+                    disc_plot.add(puma.Histogram(GN2_discs[Flav_Bools[flavour_count]],flavour = flavour))
+
+            if disc_type == 0:
+                disc_plot.draw_vlines(xs = LVT_working_point_values[Network_count],
+                                      labels = working_point_labels,
+                                      ys = 0.6*np.linspace(1,1-0.1*len(working_points),len(working_points)),
+                                      linestyle = "solid",
+                                      fontsize = 5)
+            else:
+                disc_plot.draw_vlines(xs = GN2_working_point_values[Network_count],
+                                      labels = working_point_labels,
+                                      ys = 0.6*np.linspace(1,1-0.1*len(working_points),len(working_points)),
+                                      linestyle = "solid",
+                                      fontsize = 5)
+
+
+            disc_plot.draw()
+            disc_plot.savefig(single_plotting_path+prior_names[disc_type]+"/discs/"+disc_names[disc_type]+"_disc."+filetype)
+
+
 
 ###################################
 ####     Int Eff Plotting      ####
 ###################################
+
+disc_names = ["tau","b"]
+
+for Network_count, Network in enumerate(net_names):
+
+    if not os.path.exists(single_plotting_path+save_names[Network_count]+"/inteff/"):
+        os.mkdir(single_plotting_path+save_names[Network_count]+"/inteff/") 
+
+    ## 0 == tau-tagging
+    ## 1 == b-tagging
+    for disc_type in range(2):
+
+        inteff_plot = puma.IntegratedEfficiencyPlot(xlabel = disc_names[disc_type]+" discriminant",
+                                                    ylabel = "integrated efficiency")
+
+
+        for flavour_count, flavour in enumerate(flav_names):
+            if disc_type == 0:
+                inteff_plot.add(puma.IntegratedEfficiency(NN_tau_discs[Network_count][Flav_Bools[3]],
+                                                          NN_tau_discs[Network_count][Flav_Bools[flavour_count]],
+                                                          flavour = flavour, tagger = Network))
+            else:
+                inteff_plot.add(puma.IntegratedEfficiency(NN_b_discs[Network_count][Flav_Bools[2]],
+                                                          NN_b_discs[Network_count][Flav_Bools[flavour_count]],
+                                                          flavour = flavour, tagger = Network))
+
+        inteff_plot.draw()
+        inteff_plot.savefig(single_plotting_path+save_names[Network_count]+"/inteff/"+disc_names[disc_type]+"_inteff."+filetype)
 
 ###################################
 ####        ROC Plotting       ####
@@ -545,8 +620,10 @@ plotting_path = plotting_path[:-len(plotting_area)]
 plotting_area = "pt_eff_rej"
 plotting_path = plotting_path+plotting_area
 
-if not os.path.exists(plotting_path):
-    os.mkdir(plotting_path)
+if not os.path.exists(plotting_path+"_b"):
+    os.mkdir(plotting_path+"_b")
+if not os.path.exists(plotting_path+"_tau"):
+    os.mkdir(plotting_path+"_tau")
 
 
 bin_ranges = [[20, 30, 40, 60, 85, 110, 140, 175, 250], np.linspace(20,29.2,11)]
@@ -567,20 +644,37 @@ for flat_bins in range(2):
 
 
         pt_rej_b_plot = puma.VarVsEffPlot(mode = "bkg_rej",
-                                xlabel = "$p_{T}$ [GeV]",
-                                ylabel = "light-jet rejection",
-                                logy = False,
-                                n_ratio_panels = 1,
-                                atlas_second_tag = flat_tag[flat_bins]+str(vver_WP*100)+"%"+
-                                "\n $\\mathcal{D} = log\\left(\\frac{p_{b}}{f_{c}\\cdot p_{c} + (1-f_{c})\\cdot p_{u})}\\right)$")
+                                          xlabel = "$p_{T}$ [GeV]",
+                                          ylabel = "light-jet rejection",
+                                          logy = False,
+                                          n_ratio_panels = 1,
+                                          atlas_second_tag = flat_tag[flat_bins]+str(vver_WP*100)+"%"+
+                                          "\n $\\mathcal{D} = log\\left(\\frac{p_{b}}{f_{c}\\cdot p_{c} + (1-f_{c})\\cdot p_{u})}\\right)$")
 
         pt_eff_b_plot = puma.VarVsEffPlot(mode = "sig_eff",
-                                xlabel = "$p_{T}$ [GeV]",
-                                ylabel = "b-jet efficeincy",
-                                logy = False,
-                                n_ratio_panels = 1,
-                                atlas_second_tag = flat_tag[flat_bins]+str(vver_WP*100)+"%"+
-                                "\n $\\mathcal{D} = log\\left(\\frac{p_{b}}{f_{c}\\cdot p_{c} + (1-f_{c})\\cdot p_{u})}\\right)$")
+                                          xlabel = "$p_{T}$ [GeV]",
+                                          ylabel = "b-jet efficeincy",
+                                          logy = False,
+                                          n_ratio_panels = 1,
+                                          atlas_second_tag = flat_tag[flat_bins]+str(vver_WP*100)+"%"+
+                                          "\n $\\mathcal{D} = log\\left(\\frac{p_{b}}{f_{c}\\cdot p_{c} + (1-f_{c})\\cdot p_{u})}\\right)$")
+
+        pt_rej_tau_plot = puma.VarVsEffPlot(mode = "bkg_rej",
+                                           xlabel = "$p_{T}$ [GeV]",
+                                           ylabel = "light-jet rejection",
+                                           logy = False,
+                                           n_ratio_panels = 1,
+                                           atlas_second_tag = flat_tag[flat_bins]+str(vver_WP*100)+"%"+
+                                           "\n $\\mathcal{D} = log\\left(\\frac{p_{\tau}}{p_{u})}\\right)$")
+
+        pt_eff_tau_plot = puma.VarVsEffPlot(mode = "sig_eff",
+                                           xlabel = "$p_{T}$ [GeV]",
+                                           ylabel = "hadronic tau efficeincy",
+                                           logy = False,
+                                           n_ratio_panels = 1,
+                                           atlas_second_tag = flat_tag[flat_bins]+str(vver_WP*100)+"%"+
+                                           "\n $\\mathcal{D} = log\\left(\\frac{p_{\tau}}{p_{u})}\\right)$")
+
 
         if comp_prior:
             vve_GN2 = puma.VarVsEff(x_var_sig = jet_arrs[is_b]["pt"] / 1e3,
@@ -596,6 +690,20 @@ for flat_bins in range(2):
             pt_rej_b_plot.add(vve_GN2, reference = True)
             pt_eff_b_plot.add(vve_GN2, reference = True)
 
+            vve_LVT = puma.VarVsEff(x_var_sig = jet_arrs[is_tau]["pt"] / 1e3,
+                                    disc_sig = LVT_discs[is_tau],
+                                    x_var_bkg = jet_arrs[is_light]["pt"] / 1e3,
+                                    disc_bkg = LVT_discs[is_light],
+                                    bins=bin_range,
+                                    working_point = vver_WP,
+                                    disc_cut = None,
+                                    flat_per_bin = flat_bins,
+                                    label = "LVT")
+
+            pt_rej_tau_plot.add(vve_LVT, reference = True)
+            pt_eff_tau_plot.add(vve_LVT, reference = True)
+
+
         for Network_count, Network in enumerate(net_names):
             vve_NN_b = puma.VarVsEff(x_var_sig = jet_arrs[is_b]["pt"] / 1e3,
                                      disc_sig = NN_b_discs[Network_count][is_b],
@@ -610,16 +718,116 @@ for flat_bins in range(2):
             pt_rej_b_plot.add(vve_NN_b, reference = (Network == net_names[0] and (not comp_prior)))
             pt_eff_b_plot.add(vve_NN_b, reference = (Network == net_names[0] and (not comp_prior)))
 
+            vve_NN_tau = puma.VarVsEff(x_var_sig = jet_arrs[is_tau]["pt"] / 1e3,
+                                       disc_sig = NN_b_discs[Network_count][is_tau],
+                                       x_var_bkg = jet_arrs[is_light]["pt"] / 1e3,
+                                       disc_bkg = NN_b_discs[Network_count][is_light],
+                                       bins=bin_range,
+                                       working_point = vver_WP,
+                                       disc_cut = None,
+                                       flat_per_bin = flat_bins,
+                                       label = Network)
+
+            pt_rej_tau_plot.add(vve_NN_tau, reference = (Network == net_names[0] and (not comp_prior)))
+            pt_eff_tau_plot.add(vve_NN_tau, reference = (Network == net_names[0] and (not comp_prior)))
+
 
         pt_rej_b_plot.draw()
-        pt_rej_b_plot.savefig(plotting_path+"/pt_rej_"+bin_ranges_names[count]+"_"+flat_name[flat_bins]+"."+filetype)
-
+        pt_rej_b_plot.savefig(plotting_path+"_b/pt_rej_"+bin_ranges_names[count]+"_"+flat_name[flat_bins]+"."+filetype)
 
         pt_eff_b_plot.draw()
-        pt_eff_b_plot.savefig(plotting_path+"/pt_eff_"+bin_ranges_names[count]+"_"+flat_name[flat_bins]+"."+filetype)
+        pt_eff_b_plot.savefig(plotting_path+"_b/pt_eff_"+bin_ranges_names[count]+"_"+flat_name[flat_bins]+"."+filetype)
+
+        pt_rej_tau_plot.draw()
+        pt_rej_tau_plot.savefig(plotting_path+"_tau/pt_rej_"+bin_ranges_names[count]+"_"+flat_name[flat_bins]+"."+filetype)
+
+        pt_eff_tau_plot.draw()
+        pt_eff_tau_plot.savefig(plotting_path+"_tau/pt_eff_"+bin_ranges_names[count]+"_"+flat_name[flat_bins]+"."+filetype)
+
 
 plotting_path = plotting_path[:-len(plotting_area)]
 
 ###################################
 ####  eta vs eff/bkg Plotting  ####
 ###################################
+
+plotting_area = "eta_eff_rej"
+plotting_path = plotting_path+plotting_area
+
+if not os.path.exists(plotting_path):
+    os.mkdir(plotting_path)
+
+
+bin_ranges = [np.linspace(-2.5,2.5,30),np.linspace(0,2.5,15)]
+
+bin_ranges_names = ["fulleta",
+                    "abseta"]
+
+eta_names =["$\eta$","$|\eta|$"]
+
+modes = ["bkg_rej","sig_eff"]
+mode_labels_b = ["light-jet rejection","b-jet efficiency"]
+mode_labels_tau = ["light-jet rejection","tau-jet efficiency"]
+
+flat_tag = ["inclusive WP = ", 
+            "Per Bin WP = "]
+flat_name = ["Inclusive", "PerBin"]
+
+for flat_bins in range(2):
+    for count, bin_range in enumerate(bin_ranges):
+
+
+        eta_rej_b_plot = puma.VarVsEffPlot(mode = "bkg_rej",
+                                           xlabel = eta_names[count],
+                                           ylabel = "light-jet rejection",
+                                           logy = False,
+                                           n_ratio_panels = 1,
+                                           atlas_second_tag = flat_tag[flat_bins]+str(vver_WP*100)+"%"+
+                                           "\n $\\mathcal{D} = log\\left(\\frac{p_{b}}{f_{c}\\cdot p_{c} + (1-f_{c})\\cdot p_{u})}\\right)$")
+
+        eta_eff_b_plot = puma.VarVsEffPlot(mode = "sig_eff",
+                                          xlabel = eta_names[count],
+                                          ylabel = "b-jet efficeincy",
+                                          logy = False,
+                                          n_ratio_panels = 1,
+                                          atlas_second_tag = flat_tag[flat_bins]+str(vver_WP*100)+"%"+
+                                          "\n $\\mathcal{D} = log\\left(\\frac{p_{b}}{f_{c}\\cdot p_{c} + (1-f_{c})\\cdot p_{u})}\\right)$")
+
+        if comp_prior:
+
+            vve_GN2 = puma.VarVsEff(x_var_sig = jet_arrs[is_b]["eta"] if count == 0 else np.abs(jet_arrs[is_b]["eta"]),
+                                    disc_sig = GN2_discs[is_b],
+                                    x_var_bkg = jet_arrs[is_light]["eta"] if count == 0 else np.abs(jet_arrs[is_light]["eta"]),
+                                    disc_bkg = GN2_discs[is_light],
+                                    bins=bin_range,
+                                    working_point = vver_WP,
+                                    disc_cut = None,
+                                    flat_per_bin = flat_bins,
+                                    label = "GN2")
+
+            eta_rej_b_plot.add(vve_GN2, reference = True)
+            eta_eff_b_plot.add(vve_GN2, reference = True)
+
+        for Network_count, Network in enumerate(net_names):
+            vve_NN_b = puma.VarVsEff(x_var_sig = jet_arrs[is_b]["eta"] if count == 0 else np.abs(jet_arrs[is_b]["eta"]),
+                                     disc_sig = NN_b_discs[Network_count][is_b],
+                                     x_var_bkg = jet_arrs[is_light]["eta"] if count == 0 else np.abs(jet_arrs[is_light]["eta"]),
+                                     disc_bkg = NN_b_discs[Network_count][is_light],
+                                     bins=bin_range,
+                                     working_point = vver_WP,
+                                     disc_cut = None,
+                                     flat_per_bin = flat_bins,
+                                     label = Network)
+
+            eta_rej_b_plot.add(vve_NN_b, reference = (Network == net_names[0] and (not comp_prior)))
+            eta_eff_b_plot.add(vve_NN_b, reference = (Network == net_names[0] and (not comp_prior)))
+
+
+        eta_rej_b_plot.draw()
+        eta_rej_b_plot.savefig(plotting_path+"/eta_rej_"+bin_ranges_names[count]+"_"+flat_name[flat_bins]+"."+filetype)
+
+
+        eta_eff_b_plot.draw()
+        eta_eff_b_plot.savefig(plotting_path+"/eta_eff_"+bin_ranges_names[count]+"_"+flat_name[flat_bins]+"."+filetype)
+
+plotting_path = plotting_path[:-len(plotting_area)]

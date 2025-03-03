@@ -9,7 +9,7 @@ import os # type: ignore
 
 filetype = "png"
 
-preprocess = "1GeV_Lucas"
+preprocess = "1GeV"
 ttbar_filepath = "NetworkSamples/train/"+preprocess+".h5"
 
 plotting_path = "NetworkPlots/Corrections_"+filetype+"/"
@@ -40,10 +40,6 @@ loop_target = 500
 
 bar_length = 100
 
-## which flavour is signal and background
-## 0 = light | 1 = c | 2 = b | 3 = tau
-signal_indexs = [2,3]
-background_indexs = [0,0]
 
 if "4dot6GeV" in preprocess:
     BINS = 10*5
@@ -143,32 +139,42 @@ print("Total of "+str(loop_target*jets_per_batch/1_000_000)+" million jets colle
 
 weight_light = np.sum(PT_ETA_2D[0])
 
+Pseudo_Outputs = []
+
+file_adds = ["u","c","b","tau"]
+
 for count, flav in enumerate(flav_bool):
     PT_ETA_2D[count] = PT_ETA_2D[count] * (weight_light/np.sum(PT_ETA_2D[count]))
 
-for sig_count, signal_index in enumerate(signal_indexs):
+    n_jets_arr = PT_ETA_2D[count] if count == 0 else np.add(n_jets_arr,PT_ETA_2D[count])
 
-    background_index = background_indexs[sig_count]
+for count, flav in enumerate(flav_bool):
+
+    Temp_Outputs = np.divide(PT_ETA_2D[count],n_jets_arr)
+
+    if np.sum(Temp_Outputs[Temp_Outputs == 0]) != 0:
+        print("NOOOOOOOOOOOOOOOOOOOOOOOOOOO")
+
+    np.save(corrections_path+"Corr_Output_"+file_adds[count],Temp_Outputs)
+
+np.save(corrections_path+"corr_bins_pt", pt_edges)
+np.save(corrections_path+"corr_bins_eta",eta_edges)
+
+## Plotting
+
+for signal_index in range(2):
+
+    signal_index += 2
+    background_index = 0
+
+    sig_name = file_adds[signal_index]
 
     PT_ETA_RATIO_2D = np.divide(PT_ETA_2D[signal_index],PT_ETA_2D[background_index])
 
     PT_RATIO_1D = np.divide(PT_ETA_2D[signal_index].sum(axis=1),PT_ETA_2D[background_index].sum(axis=1))
     ETA_RATIO_1D = np.divide(PT_ETA_2D[signal_index].sum(axis=0),PT_ETA_2D[background_index].sum(axis=0))
 
-    ## Saving
-
-    if signal_index == 2:
-        sig_name = "b"
-    elif signal_index == 3:
-        sig_name = "tau"
-
-    np.save(corrections_path+"corr_2D_"+sig_name,PT_ETA_RATIO_2D)
-    np.save(corrections_path+"corr_bins_pt", pt_edges)
-    np.save(corrections_path+"corr_bins_eta",eta_edges)
-
-    np.save(corrections_path+"corr_1D_"+sig_name,PT_RATIO_1D)
-
-    ## Plotting
+    ## outputs
 
     ## pt dist
     histplot_pt = puma.HistogramPlot(bins = pt_edges,

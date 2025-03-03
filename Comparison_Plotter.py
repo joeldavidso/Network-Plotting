@@ -44,9 +44,9 @@ comp_prior = True
 ## Select which discriminant corrections to use
 ## Available Choices: 
 ## |None = No Correction|"1D" = Only Correct in pT|"2D" = Correct in Both pT and eta|"Both" = Correct and plot with both|
-correct = None
+correct = "1D"
 
-filetype = "pdf"
+filetype = "png"
 
 
 sample_names = ["4dot6GeV",
@@ -201,62 +201,6 @@ for Network_count, Network in enumerate(sample_filepaths):
             )
 
 ###################################
-####     Disc Calculations     ####
-###################################
-
-print("Calculating Discriminants!")
-
-NN_b_discs =[]
-NN_tau_discs = []
-
-for Network_count in range(len(sample_filepaths)):
-    NN_b_discs.append(np.apply_along_axis(b_disc, 0, [NN_dataframes[Network_count]["pu"],
-                                                      NN_dataframes[Network_count]["pc"],
-                                                      NN_dataframes[Network_count]["pb"]]))
-
-    NN_tau_discs.append(np.apply_along_axis(tau_disc, 0, [NN_dataframes[Network_count]["pu"],
-                                                          NN_dataframes[Network_count]["ptau"]]))
-
-if comp_prior:
-
-    GN2_discs = np.apply_along_axis(b_disc, 0 ,[GN2_dataframes["pu"],
-                                                GN2_dataframes["pc"],
-                                                GN2_dataframes["pb"]])
-
-    LVT_discs = np.apply_along_axis(tau_disc, 0, [LVT_dataframes["pu"],
-                                                  LVT_dataframes["ptau"]])
-
-working_points = [95,85,70,50]
-working_point_labels = ["95%","85%","70%","50%"]
-NN_b_working_point_values = []
-NN_tau_working_point_values = []
-GN2_working_point_values = []
-LVT_working_point_values = []
-
-for Network_count in range(len(sample_filepaths)):
-    NN_b_working_point_values_temp = []
-    NN_tau_working_point_values_temp = []
-
-    for WP in working_points:
-        NN_b_working_point_values_temp.append(working_point_disc(NN_b_discs[Network_count][is_b],WP))
-        NN_tau_working_point_values_temp.append(working_point_disc(NN_tau_discs[Network_count][is_tau],WP))
-
-    NN_b_working_point_values.append(NN_b_working_point_values_temp)
-    NN_tau_working_point_values.append(NN_tau_working_point_values_temp)
-
-
-if comp_prior:
-    GN2_working_point_values_temp =[]
-    LVT_working_point_values_temp = []
-
-    for WP in working_points:
-        GN2_working_point_values_temp.append(working_point_disc(GN2_discs[is_b],WP))
-        LVT_working_point_values_temp.append(working_point_disc(LVT_discs[is_tau],WP))
-
-    GN2_working_point_values.append(GN2_working_point_values_temp)
-    LVT_working_point_values.append(LVT_working_point_values_temp)
-
-###################################
 ####  Correction Calculations  ####
 ###################################
 
@@ -290,64 +234,55 @@ if correct and len(NET_SELECT) == 1:
     corr_bins_eta = np.append(corr_bins_eta,1e6)
 
 
-    corr_arrs = [np.load(corr_filepath+"corr_"+correct+"_b.npy"),
-                    np.load(corr_filepath+"corr_"+correct+"_tau.npy")]
-    corr_indexed_pt = [0,0]
-    corr_indexed_eta = [0,0]
-    corr_values = [0,0]
+    corr_indexed = [0,0]    
+    corr_output_arrs = []
+    file_adds = ["u","c","b","tau"]
     
+    ## Get correction outputs
+    for count, flavour in enumerate(flav_names):
+        corr_output_arrs.append(np.load(corr_filepath+"Corr_Output_"+file_adds[count]+".npy"))
 
-    ## Get corrections
+    ## Get jet allocations
+    corr_indexed[0] = np.digitize(jet_arrs["pt"]/1e3, corr_bins_pt, right=True)
+    corr_indexed[1] = np.digitize(np.absolute(jet_arrs["eta"]), corr_bins_eta, right=True)
+
+    ## get corr values for each jet
     if correct == "1D":
+        
+        for out_count in range(len(corr_output_arrs)):
+            corr_output_arrs[out_count] = corr_output_arrs[out_count].sum(axis=1)
+            corr_output_arrs[out_count] = np.append(corr_output_arrs[out_count],[1])
 
-        for i in range(2):
+        corr_values = [np.array([corr_output_arrs[0][j-1] for j in corr_indexed[0]]),
+                       np.array([corr_output_arrs[1][j-1] for j in corr_indexed[0]]),
+                       np.array([corr_output_arrs[2][j-1] for j in corr_indexed[0]]),
+                       np.array([corr_output_arrs[3][j-1] for j in corr_indexed[0]])]
 
-            corr_arrs[i] = np.append(corr_arrs[i],[1])
-            corr_indexed_pt[i] = np.digitize(jet_arrs["pt"]/1e3, corr_bins_pt, right=True)
-            corr_values[i] = np.array([corr_arrs[i][j-1] for j in corr_indexed_pt[i]])
+    elif correct == "2D":
 
+        for out_count in range(len(corr_output_arrs)):
+            corr_add_1 = np.ones((len(corr_output_arrs[out_count][:,0]),1),corr_output_arrs[0].dtype)
+            corr_add_2 = np.ones((len(corr_output_arrs[out_count][0]),1),corr_output_arrs[0].dtype)
 
+            corr_output_arrs[out_count] = np.concatenate((corr_output_arrs[out_count],corr_add_1),1)
+            corr_output_arrs[out_count] = np.concatenate((corr_output_arrs[out_count],corr_add_2),0)
 
-    if correct == "2D":
+        for j in range(len(corr_indexed[0])):
+            corr_values = [np.array(corr_output_arrs[0][corr_indexed[0][j]-1][corr_indexed[1][j]-1]),
+                           np.array(corr_output_arrs[1][corr_indexed[0][j]-1][corr_indexed[1][j]-1]),
+                           np.array(corr_output_arrs[2][corr_indexed[0][j]-1][corr_indexed[1][j]-1]),
+                           np.array(corr_output_arrs[3][corr_indexed[0][j]-1][corr_indexed[1][j]-1])]
 
-        for i in range(2):
+## Change the NN outputs
 
-            corr_add_1 = np.ones((len(corr_arrs[i][:,0]),1),corr_arrs[i].dtype)
-            corr_arrs[i]= np.concatenate((corr_arrs[i],corr_add_1),1)
-
-            corr_add_2 = np.ones((1,len(corr_arrs[i][0])),corr_arrs[i].dtype)
-            corr_arrs[i] = np.concatenate((corr_arrs[i],corr_add_2),0)
-
-            corr_indexed_pt[i] = np.digitize(jet_arrs["pt"]/1e3, corr_bins_pt, right=True)
-            corr_indexed_eta[i] = np.digitize(np.absolute(jet_arrs["eta"]), corr_bins_eta, right=True)
-
-            if len(corr_indexed_pt[i]) != len(corr_indexed_eta[i]): 
-                raise Exception("pt and eta correction array wrong lengths")
-
-            corr_values_2D_b = []
-
-            for j in range(len(corr_indexed_pt[i])):
-                corr_values_2D_b.append(corr_arrs[i][corr_indexed_pt[i][j]-1][corr_indexed_eta[i][j]-1])
-
-## Change the NN discs
-
-    for Network_count in range(len(net_names)):
-        NN_b_discs.append(NN_b_discs[Network_count] - np.log(corr_values[0]))
-        NN_tau_discs.append(NN_tau_discs[Network_count] - np.log(corr_values[1]))
-
-## add WP lines
-
-
-    NN_b_working_point_values_temp = []
-    NN_tau_working_point_values_temp = []
-
-    for WP in working_points:
-        NN_b_working_point_values_temp.append(working_point_disc(NN_b_discs[1][is_b],WP))
-        NN_tau_working_point_values_temp.append(working_point_disc(NN_tau_discs[1][is_tau],WP))
-
-    NN_b_working_point_values.append(NN_b_working_point_values_temp)
-    NN_tau_working_point_values.append(NN_tau_working_point_values_temp)
-
+    NN_dataframes.append(pd.DataFrame(
+        {
+            "pu" : NN_dataframes[0][prob_names[0]].div(corr_values[0]),
+            "pc" : NN_dataframes[0][prob_names[1]].div(corr_values[1]),
+            "pb" : NN_dataframes[0][prob_names[2]].div(corr_values[2]),
+            "ptau" : NN_dataframes[0][prob_names[3]].div(corr_values[3])
+        }
+    ))
 
 ## Add to network lists for plotting
 
@@ -359,6 +294,62 @@ if correct and len(NET_SELECT) == 1:
     if not os.path.exists(plotting_path):
         os.mkdir(plotting_path)
 
+
+###################################
+####     Disc Calculations     ####
+###################################
+
+print("Calculating Discriminants!")
+
+NN_b_discs =[]
+NN_tau_discs = []
+
+for Network_count in range(len(net_names)):
+    NN_b_discs.append(np.apply_along_axis(b_disc, 0, [NN_dataframes[Network_count]["pu"],
+                                                      NN_dataframes[Network_count]["pc"],
+                                                      NN_dataframes[Network_count]["pb"]]))
+
+    NN_tau_discs.append(np.apply_along_axis(tau_disc, 0, [NN_dataframes[Network_count]["pu"],
+                                                          NN_dataframes[Network_count]["ptau"]]))
+
+if comp_prior:
+
+    GN2_discs = np.apply_along_axis(b_disc, 0 ,[GN2_dataframes["pu"],
+                                                GN2_dataframes["pc"],
+                                                GN2_dataframes["pb"]])
+
+    LVT_discs = np.apply_along_axis(tau_disc, 0, [LVT_dataframes["pu"],
+                                                  LVT_dataframes["ptau"]])
+
+working_points = [95,85,70,50]
+working_point_labels = ["95%","85%","70%","50%"]
+NN_b_working_point_values = []
+NN_tau_working_point_values = []
+GN2_working_point_values = []
+LVT_working_point_values = []
+
+for Network_count in range(len(net_names)):
+    NN_b_working_point_values_temp = []
+    NN_tau_working_point_values_temp = []
+
+    for WP in working_points:
+        NN_b_working_point_values_temp.append(working_point_disc(NN_b_discs[Network_count][is_b],WP))
+        NN_tau_working_point_values_temp.append(working_point_disc(NN_tau_discs[Network_count][is_tau],WP))
+
+    NN_b_working_point_values.append(NN_b_working_point_values_temp)
+    NN_tau_working_point_values.append(NN_tau_working_point_values_temp)
+
+
+if comp_prior:
+    GN2_working_point_values_temp = []
+    LVT_working_point_values_temp = []
+
+    for WP in working_points:
+        GN2_working_point_values_temp.append(working_point_disc(GN2_discs[is_b],WP))
+        LVT_working_point_values_temp.append(working_point_disc(LVT_discs[is_tau],WP))
+
+    GN2_working_point_values.append(GN2_working_point_values_temp)
+    LVT_working_point_values.append(LVT_working_point_values_temp)
 
 ###################################
 ####  Rejection Calculations   ####
@@ -443,10 +434,10 @@ for Network_count, Network in enumerate(net_names):
 
         if disc_type == 0:
             disc_plot.draw_vlines(xs = NN_tau_working_point_values[Network_count],
-                                labels = working_point_labels,
-                                ys = 0.6*np.linspace(1,1-0.1*len(working_points),len(working_points)),
-                                linestyle = "solid",
-                                fontsize = 5)
+                                  labels = working_point_labels,
+                                  ys = 0.6*np.linspace(1,1-0.1*len(working_points),len(working_points)),
+                                  linestyle = "solid",
+                                  fontsize = 5)
         else:
             disc_plot.draw_vlines(xs = NN_b_working_point_values[Network_count],
                                   labels = working_point_labels,
@@ -485,13 +476,13 @@ if comp_prior:
                     disc_plot.add(puma.Histogram(GN2_discs[Flav_Bools[flavour_count]],flavour = flavour))
 
             if disc_type == 0:
-                disc_plot.draw_vlines(xs = LVT_working_point_values[Network_count],
+                disc_plot.draw_vlines(xs = LVT_working_point_values[0],
                                       labels = working_point_labels,
                                       ys = 0.6*np.linspace(1,1-0.1*len(working_points),len(working_points)),
                                       linestyle = "solid",
                                       fontsize = 5)
             else:
-                disc_plot.draw_vlines(xs = GN2_working_point_values[Network_count],
+                disc_plot.draw_vlines(xs = GN2_working_point_values[0],
                                       labels = working_point_labels,
                                       ys = 0.6*np.linspace(1,1-0.1*len(working_points),len(working_points)),
                                       linestyle = "solid",
